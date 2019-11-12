@@ -1,0 +1,1 @@
+avrdude -c usbasp -p t13 -B50 -U calibration:r:calibration.txt:d

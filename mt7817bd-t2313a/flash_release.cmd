@@ -1,0 +1,1 @@
+avrdude -c usbasp -p t2313 -B50 -U lfuse:w:0x62:m -U hfuse:w:0x99:m -U efuse:w:0xff:m -U flash:w:Release\mt7817bd-t2313a.hex
