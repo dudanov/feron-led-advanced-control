@@ -9,17 +9,20 @@
 
 rotate_hue:
     
-    andi  HB_VALUE_REG, 0x0F            ; [1]
-    brne  PC+3                          ; [1][2] ->
-    cbr   STATUS_REG, _BV(INV_BIT)      ; [1]
-    rjmp  PC+6                          ; [2] ->
-    cpi   HB_VALUE_REG, 0x0F            ; [1] <-
-    brne  PC+2                          ; [1][2]
-    sbr   STATUS_REG, _BV(INV_BIT)      ; [1][0]
     sbrc  STATUS_REG, INV_BIT           ; [2][1]
-    subi  HB_VALUE_REG, 2               ; [0][1]
-    subi  HB_VALUE_REG, -1              ; [1][1] <-
-    ret                                 ; [4]
+    rjmp  PC+6                          ; [0][2] ->
+    
+    subi  HB_VALUE_REG, -1              ; [1][1]
+    brhs  PC+3                          ; [1][2]
+    sbr   STATUS_REG, _BV(INV_BIT)      ; [1][0]
+    subi  HB_VALUE_REG, 2               ; [1][0]
+    ret                                 ; [4][4]
+    
+    subi  HB_VALUE_REG, 1               ; [1][1] <-
+    brhc  PC+3                          ; [1][2]
+    cbr   STATUS_REG, _BV(INV_BIT)      ; [1][0]
+    subi  HB_VALUE_REG, -2              ; [1][0]
+    ret                                 ; [4][4]
 
 ; Update both channels target registers from HB value (0xBH: high 4-bits is Brightness, low - Hue)
 ; [11]: power is OFF, [16]: power is ON
