@@ -3,6 +3,7 @@
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
+; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 
 ; CUSTOM ADDRESS FOR SET HB-VALUE (AS COMMAND) WITH DIMMING
@@ -27,8 +28,10 @@
 .equ NEC_FERON_TIM30M   = 0xFA
 
 ; ### CUSTOM COMMANDS ###
-.equ NEC_CUSTOM_PWRON   = 0xEA
-.equ NEC_CUSTOM_PWROFF  = 0xEC
+.equ NEC_PWRON          = 0xEA  ; power ON
+.equ NEC_PWROFF         = 0xEC  ; power OFF
+.equ NEC_ROTATE_HUE     = 0xF0  ; rotate HUE
+.equ NEC_ROTATE_BR      = 0xA2  ; rotate BRIGHTNESS
 ; 0x0X: HUE  = X
 ; 0x1X: BR   = X
 ; 0x2X: HUE += X
@@ -73,7 +76,7 @@ _space:
     tst   NEC_FRAME_REG                             ; [1]
     breq  _frame_end                                ; [1][2] -> PROTOCOL ERROR: NO MAIN FRAME IN BUFFER
     ldi   NEC_FRAME_REG, NEC_RX_REPEAT              ; [1]
-    rjmp  _set_ack                                  ; [2]
+    rjmp  _set_fin                                  ; [2]
     ; prepare for main frame reading
     ldi   NEC_FRAME_REG, NEC_RX_MAIN                ; [1]
     ldi   BITCNT_REG, 32                            ; [1]
@@ -97,8 +100,8 @@ _space:
 _abort:
     rjmp  _nec_abort                                ; [0][2] -> PROTOCOL ERROR: LAST DATA BYTE NOT INVERTED
 
-_set_ack:
-    sbr   STATUS_REG, _BV(NEC_ACK_BIT)              ; [1]
+_set_fin:
+    sbr   STATUS_REG, _BV(NEC_FIN_BIT)              ; [1]
     rjmp  _nec_tim_reset                            ; [2]
 
 _frame_end:
@@ -108,7 +111,7 @@ _frame_end:
 _data_mark:
     cpi   NECCNT_REG, NEC_T(2)                      ; [1]
     brsh  _abort                                    ; [1][2] -> PROTOCOL ERROR: TOO LONG DATA MARK
-    sbrs  STATUS_REG, NEC_ACK_BIT                   ; [2][1]
+    sbrs  STATUS_REG, NEC_FIN_BIT                   ; [2][1]
     rjmp  _nec_tim_reset                            ; [2] ----> GOOD: DATA MARK TIMING IS OK
 
     ; #### START OF PACKET PROCESSING ####
@@ -163,7 +166,7 @@ _native_address:
     rcall update_target_registers                   ; [19|14]
     rjmp  _nec_abort                                ; [2] ->
 
-    cpi   TMP_REG, NEC_CUSTOM_PWRON                 ; [1]
+    cpi   TMP_REG, NEC_PWRON                        ; [1]
     brne  PC+4                                      ; [1][2]
     ; [0xEA]: CUSTOM "POWER ON" COMMAND. MAY BE USED TO TURN OFF TIMER.
     sbr   STATUS_REG, _BV(PWR_BIT)                  ; [1]
@@ -207,7 +210,7 @@ _native_address:
 
 _above_5f:
     
-    cpi   TMP_REG, NEC_CUSTOM_PWROFF                ; [1]
+    cpi   TMP_REG, NEC_PWROFF                       ; [1]
     brne  PC+4                                      ; [1][2]
     ; [0xEC]: CUSTOM "POWER OFF" COMMAND
     andi  STATUS_REG, _BV(INV_BIT)                  ; [1]
@@ -247,7 +250,7 @@ _hue_add_command:
     add   HB_VALUE_REG, TMP_REG                     ; [1]
     brhc  _cmd_final                                ; [1][2] -> HUE is not overflowed. Final command.
     ; HUE is overflowed. Limit value to 15 and fix corrupted BR value.
-    ori   HB_VALUE_REG, 0x0F                        ; [1]
+    sbr   HB_VALUE_REG, 0x0F                        ; [1]
     subi  HB_VALUE_REG, 0x10                        ; [1]
     rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
 
@@ -259,7 +262,7 @@ _br_add_command:
     add   HB_VALUE_REG, TMP_REG                     ; [1]
     brcc  _cmd_final                                ; [1][2] -> BR is not overflowed
     ; BR is overflowed. Limit value to 15.
-    ori   HB_VALUE_REG, 0xF0                        ; [1]
+    sbr   HB_VALUE_REG, 0xF0                        ; [1]
     rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
 
     cpi   TMP_REG, NEC_FERON_HUEDN                  ; [1]
@@ -270,7 +273,7 @@ _hue_sub_command:
     sub   HB_VALUE_REG, TMP_REG                     ; [1]
     brhc  _cmd_final                                ; [1][2] -> HUE is not overflowed.
     ; HUE is overflowed. Limit value to 0 and fix corrupted BR value.
-    andi  HB_VALUE_REG, 0xF0                        ; [1]
+    cbr   HB_VALUE_REG, 0x0F                        ; [1]
     subi  HB_VALUE_REG, 0xF0                        ; [1]
     rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
 
@@ -282,26 +285,41 @@ _br_sub_command:
     sub   HB_VALUE_REG, TMP_REG                     ; [1]
     brcc  _cmd_final                                ; [1][2] -> BR is not overflowed.
     ; BR is overflowed. Limit value to 0.
-    andi  HB_VALUE_REG, 0x0F                        ; [1]
+    cbr   HB_VALUE_REG, 0xF0                        ; [1]
     rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
 
+    ; ROTATE COMMANDS BLOCK
+
+    cpi   TMP_REG, NEC_ROTATE_BR                    ; [1]
+    brne  PC+5                                      ; [1][2] -> IS NEXT COMMAND?
+    ; [0xA2]: CUSTOM "ROTATE BRIGHTNESS" COMMAND
+    swap  HB_VALUE_REG                              ; [1]
+    rcall rotate_hue                                ; [18]
+    swap  HB_VALUE_REG                              ; [1]
+    rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
+
+    cpi   TMP_REG, NEC_ROTATE_HUE                   ; [1]
+    ; [0xF0]: CUSTOM "ROTATE HUE" COMMAND
+    breq  PC+12                                     ; [1][2] -> ROTATE HUE COMMAND
+
     cpi   TMP_REG, NEC_FERON_NIGHT                  ; [1]
-    brne  PC+6                                      ; [1][2] -> IS NEXT COMMAND?
+    brne  PC+5                                      ; [1][2] -> IS NEXT COMMAND?
     ; [0xF5]: NATIVE "NIGHT" COMMAND
     cpi   HB_VALUE_REG, 0x10                        ; [1]
-    brsh  PC+2                                      ; [1][2] -> FIRST SET BRIGHTNESS TO MIN
-    rcall rotate_hue                                ; [18]
-    andi  HB_VALUE_REG, 0x0F                        ; [1]
-    rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
+    cbr   HB_VALUE_REG, 0xF0                        ; [1] SET BRIGHTNESS TO MIN
+    brlo  PC+7                                      ; [1][2] -> BRIGHTNESS ALREADY ZERO. ROTATE HUE
+    rjmp  _cmd_final                                ; [2]    -> COMMAND FINAL
 
     cpi   TMP_REG, NEC_FERON_MODE                   ; [1]
     brne  PC+6                                      ; [1][2] -> IS NEXT COMMAND?
     ; [0xAC]: NATIVE "MAX" COMMAND
     cpi   HB_VALUE_REG, 0xF0                        ; [1]
-    brlo  PC+2                                      ; [1][2] -> FIRST SET BRIGHTNESS TO MAX
+    sbr   HB_VALUE_REG, 0xF0                        ; [1] SET BRIGHTNESS TO MAX
+    brlo  _cmd_final                                ; [1][2] -> COMMAND FINAL
     rcall rotate_hue                                ; [18]
-    ori   HB_VALUE_REG, 0xF0                        ; [1] <-
-    rjmp  _cmd_final                                ; [2] -> COMMAND FINAL
+    rjmp  _cmd_final                                ; [2]    -> COMMAND FINAL
+
+    ; END OF ROTATE COMMANDS BLOCK
 
     cpi   TMP_REG, NEC_FERON_SELECT                 ; [1]
     brne  _nec_abort                                ; [1][2] -> LAST COMMAND

@@ -3,6 +3,7 @@
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
+; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 
 ; Checking criticals variables
@@ -94,8 +95,8 @@
 .equ FRC_BIT            = 4
 .equ TMR_BIT            = 5
 .equ NEC_LEADER_BIT     = 6
-.equ NEC_ACK_BIT        = 7
-.equ NEC_STATUS_MASK    = _BV(NEC_LEADER_BIT) | _BV(NEC_ACK_BIT)
+.equ NEC_FIN_BIT        = 7
+.equ NEC_STATUS_MASK    = _BV(NEC_LEADER_BIT) | _BV(NEC_FIN_BIT)
 .equ STATUS_EEPROM_MASK = _BV(PWR_BIT) | _BV(INV_BIT)
 
 .ifndef WORK_MODE

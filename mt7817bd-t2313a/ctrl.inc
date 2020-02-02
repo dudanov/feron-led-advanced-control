@@ -3,6 +3,7 @@
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
+; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 
     ; **** START OF DIMMING CONTROL BLOCK ****

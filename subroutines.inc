@@ -1,8 +1,9 @@
 ;
-; File: subroutines.inc (part of Feron Led Advanced Control project)
+; File: subroutines.inc (part of "Feron Light Advanced Control" project)
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
+; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 
 ; Hue rotation function
