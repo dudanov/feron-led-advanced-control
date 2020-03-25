@@ -3,61 +3,61 @@
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
-; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 
 _main_loop:
     
     ; NEXT RANDOM VALUE
     lsr   RAND_REG                      ; [1]
-    brcc  PC+3                          ; [1][2] ->
+    brcc  PC+3                          ; [1][2] -> 1:
     ldi   TMP_REG, RAND_MASK            ; [1]
     eor   RAND_REG, TMP_REG             ; [1]
 
     ; CHECK FOR TIMER EVENT (~0.75 NEC_T)
-    in    TMP_REG, TIM_FLAGS_REG        ; [1]
+    in    TMP_REG, TIM_FLAGS_REG        ; [1] <- 1:
     sbrs  TMP_REG, TIM_FLAG_BIT         ; [2][1]
     rjmp  pcint_event                   ; [0][2] -> NO OVERFLOW. CHECK FOR PIN CHANGE EVENT.
     
-    ; TIMER IS OVERFLOW
-    out   TIM_FLAGS_REG, TMP_REG        ; [1]
-    inc   NECCNT_REG                    ; [1]
-    brne  PC+2                          ; [1][2]
-    dec   NECCNT_REG                    ; [1][0]
+    ; TIMER IS OVERFLOWED
+    out   TIM_FLAGS_REG, TMP_REG        ; [1] clear timer flags
+    cpi   NECCNT_REG, NECCNT_MAX        ; [1]
+    adc   NECCNT_REG, ZERO_REG          ; [1] if (neccnt < max) neccnt++
     dec   PWRTMR_REG                    ; [1]
     brne  pcint_event                   ; [1][2] -> POWER IS OK. CHECK FOR PIN CHANGE EVENT.
     
     ; AC POWER LOSS. STORE RETAIN DATA TO EEPROM.
     
 .if PD_MASK
-    out   DDRB,  ZERO_REG                   ; [1]
+    out   DDRB,  ZERO_REG               ; [1]
 .endif
     
-    ; *** STORE HB TO EEPROM ***
-    ldi   TIMLO_REG, eeprom_hb              ; [1]
-    mov   TIMHI_REG, HB_VALUE_REG           ; [1]
-    rcall eeprom_write                      ; [3]
+    ; *** STORE BH TO EEPROM ***
+    ldi   TMP_REG, ee_bh_current        ; [1]
+    rcall eeprom_write_bh               ; [20+]
 
+.if INIT_PWR_STATE > 1
     ; *** STORE STATUS TO EEPROM ***
-    ldi   TIMLO_REG, eeprom_status          ; [1]
-    mov   TIMHI_REG, STATUS_REG             ; [1]
-    ori   TIMHI_REG, ~STATUS_EEPROM_MASK    ; [1]
-    andi  STATUS_REG, STATUS_EEPROM_MASK    ; [1]
-    rcall eeprom_write                      ; [3]
+    push  BH_VALUE_REG                  ; [2]
+    mov   BH_VALUE_REG, STATUS_REG      ; [1]
+    sbr   BH_VALUE_REG, ~_BV(PWR_BIT)   ; [1]
+    ldi   TMP_REG, ee_status            ; [1]
+    rcall eeprom_write_bh               ; [20+]
+    pop   BH_VALUE_REG                  ; [2]
+.endif
 
 .if PD_MASK
-    ; Waiting for write is completed
-    sbic  EECR,  EEPE                       ; [2][1] <-
-    rjmp  PC-1                              ; [0][2] ->
+    ; Waiting for EEPROM write is completed
+    sbic  EECR,  EEPE                   ; [2][1] <-
+    rjmp  PC-1                          ; [0][2] ->
     ; FAST DISCHARGE POWER CAPACITORS
-    ldi   TMP_REG, PD_MASK                  ; [1]
-    out   DDRB, TMP_REG                     ; [1]
+    ldi   TMP_REG, PD_MASK              ; [1]
+    out   DDRB, TMP_REG                 ; [1]
 .endif
     
     ; WAIT UNTIL AC POWER HAS BEEN RESTORED OR RESET BY BOD
-    sbis  PINB, AC_PIN                      ; [2][1] <-
-    rjmp  PC-1                              ; [0][2] ->
-    
+    sbis  PINB, AC_PIN                  ; [2][1] <-
+    rjmp  PC-1                          ; [0][2] ->
+
 pcint_event:
     
     ; CHECK FOR PIN CHANGE EVENT

@@ -1,4 +1,4 @@
-# feron-light-advanced-control
+# feron-led-advanced-control
 
 Advanced control system for Feron luminaires (and others), built on the basis of [Maxic's](http://www.maxictech.com/en/)  Chinese LED controllers.
 ***

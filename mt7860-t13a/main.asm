@@ -5,7 +5,6 @@
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
-; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 ;
 ; MCU:   ATTINY13A @ 600KHz
@@ -14,6 +13,8 @@
 
 .equ MCU_CLK_NS         = 1667  ; MCU clock period in nanoseconds.
 .equ TIM_DIV            = 256   ; In this project main tick based on TIM0 overflow.
+
+.equ INIT_PWR_STATE     = 2     ; Init power state. 0: OFF, 1: ON, 2: LAST
 
 ;.equ OSCCAL_VALUE       = 74    ; RC internal 4.8MHz oscillator calibration value (0..127). Comment if not necessary. Manufacturer value may be reading by programmer tool at address 0x01.
 
@@ -26,7 +27,7 @@
 .equ PWM_MIN            = ( 20 * 256 - 1 ) / 100    ; 20% - MIN
 .equ PWM_MAX            = ( 80 * 256 - 1 ) / 100    ; 80% - MAX
 
-.include "../defines.inc"   ; must be here (define some variables if it not defined & macro _BV() used in code below)
+.include "..\defines.inc"   ; must be here (define some variables if it not defined & macro _BV() used in code below)
 
 ; PWM timer defines
 .equ OCR1_REG           = OCR0A
@@ -72,24 +73,29 @@
     ldi   YH, high(sram_nec_data)       ; [1]
     ldi   ZH, high(pm_table*2)          ; [1]
 
-    ; LOAD DATA FROM EEPROM (Address: 0x00 - HB-value, 0x01 - power status)
-    ldi   TMP_REG, eeprom_status        ; [1]
+.if INIT_PWR_STATE > 1
+    ; load last state from EEPROM
+    ldi   TMP_REG, ee_status            ; [1]
+    rcall eeprom_read                   ; [17+]
+    mov   STATUS_REG, BH_VALUE_REG      ; [1]
+    andi  STATUS_REG, _BV(PWR_BIT)      ; [1]
+    ; load BH from EEPROM
+    ldi   TMP_REG, ee_bh_current        ; [1]
+    rcall eeprom_read_unsafe            ; [15]
+    rcall update_target_registers       ; [13+]
+.else
+    ; load BH from EEPROM
+    ldi   TMP_REG, ee_bh_current        ; [1]
+    rcall eeprom_read                   ; [17+]
+ .if INIT_PWR_STATE == 1
+    ldi   STATUS_REG, _BV(PWR_BIT)      ; [1]
+    rcall update_from_table             ; [18]
+ .else
+    clr   STATUS_REG                    ; [1]
+    rcall reset_target_registers        ; [13]
+ .endif
+.endif
     
-    ; Waiting for write is completed
-    sbic  EECR, EEPE                    ; [2][1] <-
-    rjmp  PC-1                          ; [0][2] ->
-    
-    out   EEARL, TMP_REG                ; [1]
-    sbi   EECR, EERE                    ; [2+4]
-    in    STATUS_REG, EEDR              ; [1]
-    andi  STATUS_REG, STATUS_EEPROM_MASK; [1]
-    
-    out   EEARL, ZERO_REG               ; [1]
-    sbi   EECR, EERE                    ; [2+4]
-    in    HB_VALUE_REG, EEDR            ; [1]
-
-    rcall update_target_registers       ; [14|19]
-
     ; SET INIT PWM DUTY TO <20%
     ldi   TMP_REG, PWM_OFF              ; [1]
     out   OCR1_REG, TMP_REG             ; [1]

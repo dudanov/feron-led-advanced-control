@@ -5,7 +5,6 @@
 ;
 ; Author : Sergey V. DUDANOV
 ; E-Mail : sergey.dudanov@gmail.com
-; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 ;
 ; MCU:   ATTINY2313A @500KHz
@@ -14,6 +13,8 @@
 ; EFUSE: 0xFF
 
 .equ MCU_CLK_NS         = 2000  ; MCU clock period in nanoseconds.
+
+.equ INIT_PWR_STATE     = 2     ; Init power state. 0: OFF, 1: ON, 2: LAST
 .equ WORK_MODE          = 0     ; Program work mode: 0 - normal mode, 1 - PWM_TOP value select, 2 - PWM_MIN value select.
 
 ;.equ OSCCAL_VALUE       = 74    ; RC internal 4.0MHz oscillator calibration value (0..127). Comment if not necessary. Manufacturer value may be reading by programmer tool at address 0x01.
@@ -32,7 +33,7 @@
 .equ PWM1_PD_PIN        = PB1   ; OC1A pull-down pin number
 .equ PWM2_PD_PIN        = PB0   ; OC1B pull-down pin number
 
-.include "../defines.inc"   ; must be here (define some variables if it not defined & macro _BV() used in code below)
+.include "..\defines.inc"   ; must be here (define some variables if it not defined & macro _BV() used in code below)
 
 ; PWM timer defines
 .equ OCR1_REG           = OCR1AL
@@ -68,7 +69,7 @@
     ldi   TMP_REG, OSCCAL_VALUE             ; [1]
     out   OSCCAL, TMP_REG                   ; [1]
  .endif
-
+    
     ; INIT STACK POINTER
     ldi  TMP_REG, RAMEND                    ; [1]
     out  SPL, TMP_REG                       ; [1]
@@ -82,24 +83,29 @@
     ldi   YH, high(sram_nec_data)           ; [1]
     ldi   ZH, high(pm_table*2)              ; [1]
 
-    ; LOAD DATA FROM EEPROM (Address: 0x00 - HB-value, 0x01 - power status)
-    ldi   TMP_REG, eeprom_status            ; [1]
+.if INIT_PWR_STATE > 1
+    ; load last state from EEPROM
+    ldi   TMP_REG, ee_status                ; [1]
+    rcall eeprom_read                       ; [17+]
+    mov   STATUS_REG, BH_VALUE_REG          ; [1]
+    andi  STATUS_REG, _BV(PWR_BIT)          ; [1]
+    ; load BH from EEPROM
+    ldi   TMP_REG, ee_bh_current            ; [1]
+    rcall eeprom_read_unsafe                ; [15]
+    rcall update_target_registers           ; [13+]
+.else
+    ; load BH from EEPROM
+    ldi   TMP_REG, ee_bh_current            ; [1]
+    rcall eeprom_read                       ; [17+]
+ .if INIT_PWR_STATE == 1
+    ldi   STATUS_REG, _BV(PWR_BIT)          ; [1]
+    rcall update_from_table                 ; [18]
+ .else
+    clr   STATUS_REG                        ; [1]
+    rcall reset_target_registers            ; [13]
+ .endif
+.endif
     
-    ; Waiting for write is completed
-    sbic  EECR, EEPE                        ; [2][1] <-
-    rjmp  PC-1                              ; [0][2] ->
-    
-    out   EEARL, TMP_REG                    ; [1]
-    sbi   EECR, EERE                        ; [2+4]
-    in    STATUS_REG, EEDR                  ; [1]
-    andi  STATUS_REG, STATUS_EEPROM_MASK    ; [1]
-
-    out   EEARL, ZERO_REG                   ; [1]
-    sbi   EECR, EERE                        ; [2+4]
-    in    HB_VALUE_REG, EEDR                ; [1]
-
-    rcall update_target_registers           ; [14|19]
-
     ; START TIM1 IN FAST PWM MODE (TOP IN ICR1) WITHOUT PRESCALER @500KHz. OC1A and OC1B pins not yet enabled as outputs.
     ldi   TMP_REG, high(PWM_TOP)            ; [1]
     out   ICR1H, TMP_REG                    ; [1]
