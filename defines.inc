@@ -6,7 +6,7 @@
 ; Git    : https://github.com/dudanov/feron-light-advanced-control
 ; License: GPL v3 (https://www.gnu.org/licenses/gpl.txt)
 
-; Checking criticals variables
+; Checking for critical variables
 .ifndef MCU_CLK_NS
  .error "MCU_CLK_NS must be defined (main clock period in nanoseconds)."
 .endif
@@ -26,20 +26,20 @@
  .equ RAND_MASK         = 0b11010011    ; default: 211
 .endif
 
-; REGISTERS DEFINES (r31:r26 are reserved for indirect RAM access. Beware using it!)
+; REGISTERS DEFINITIONS (r31:r26 are reserved for indirect RAM access. Beware using it!)
 
 ; GLOBAL REGISTERS
 ; LOW REGISTERS
 .def ZERO_REG           = r0    ; ALWAYS ZERO
-.def CH1_TARGET_REG     = r1    ; 
-.def CH2_TARGET_REG     = r2    ; 
-.def RAND_REG           = r3    ; 
+.def CH1_TARGET_REG     = r1    ; CHANNEL #1 TARGET VALUE
+.def CH2_TARGET_REG     = r2    ; CHANNEL #2 TARGET VALUE
+.def RAND_REG           = r3    ; RANDOM
 .def BYTE_REG           = r4    ; NEC DECODER: CURRENT BYTE
 .def PIN_REG            = r5    ; PIN STATES
 .def PINCHG_REG         = r6    ; PIN CHANGED
 ; HIGH REGISTERS
 .def STATUS_REG         = r17   ; STATUS
-.def BH_VALUE_REG       = r18   ; HB VALUE
+.def BH_VALUE_REG       = r18   ; BH VALUE
 .def TICK_REG           = r19   ; SECONDS TICK COUNTER
 .def PWRTMR_REG         = r20   ; AC TIMER:     USED FOR POWER LOSS DETECTION
 .def BITCNT_REG         = r21   ; NEC:          BITS COUNTER
@@ -76,19 +76,19 @@
  .equ PWM_MAX           = 255
 .endif
 .equ PWM_OFF            = PWM_MIN - 1
-#define BH2OCR(v)       ((((PWM_MAX) - (PWM_OFF)) * ((v) & 15) * (((v) >> 4) + 1) + (PWM_OFF) * 240 + 120) / 240)
+#define BH2OCR(v)       ((((PWM_MAX) - (PWM_OFF)) * ((v) % 16) * ((v) / 16 + 1) + (PWM_OFF) * 240 + 120) / 240)
 
 ; Time defines
 .ifndef TIM_DIV
  .equ TIM_DIV           = (421875 + (MCU_CLK_NS) / 2) / (MCU_CLK_NS)
 .endif
 
-#define AC_LOSS_MS      (1200 / (AC_FREQ))
+#define AC_LOSS_MS      (2000 / (AC_FREQ))
 #define TICK_NS         ((MCU_CLK_NS) * (TIM_DIV))
 #define NEC_T(t)        ((562500 * (t) + (TICK_NS) / 2) / (TICK_NS))
 #define MS_T(t)         ((1000000 * (t) + (TICK_NS) / 2) / (TICK_NS))
 
-; Main status register defines
+; Status register definitions
 .equ PWR_BIT            = 0
 .equ INV_BIT            = 1
 .equ CH1_BIT            = 2

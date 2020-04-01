@@ -26,7 +26,7 @@ rotate_hue:
     ret                                 ; [4] <- 3:
 
 ; Update both channels target registers from HB value (0xBH: high 4-bits is Brightness, low - Hue)
-; [10]: power is OFF, [14]: power is ON
+; [10]: power is OFF, [15]: power is ON
 
 update_target_registers:
     
@@ -77,7 +77,7 @@ eeprom_read_unsafe:
 ; 3. If bytes are equals - do nothing.
 ; 4. Else analyse bit changes:
 ;    a. If bits needs only to write (set to '0') - start 'write only' op.
-;    b. Else if new byte equals 255 - start 'erase only' op.
+;    b. Else if new byte equals 0xFF - start 'erase only' op.
 ;    c. Else - start 'atomic: erase + write' op.
 
 eeprom_write_bh:
@@ -93,7 +93,7 @@ eeprom_write_bh:
     ldi   TMP_REG, _BV(EEPM1) | _BV(EEMPE)  ; [1] write op
     breq  PC+5                              ; [1][2] -> 3: write op start
     ldi   TMP_REG, _BV(EEPM0) | _BV(EEMPE)  ; [1] erase op
-    cpi   BH_VALUE_REG, 255                 ; [1]
+    cpi   BH_VALUE_REG, 0xFF                ; [1]
     breq  PC+3                              ; [1][2] -> 4: erase op start
     ldi   TMP_REG, _BV(EEMPE)               ; [1] atomic: erase + write op
     out   EEDR,  BH_VALUE_REG               ; [1] <- 3:

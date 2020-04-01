@@ -76,10 +76,10 @@
 
 .if INIT_PWR_STATE > 1
     ; load last state from EEPROM
+    ldi   STATUS_REG, _BV(PWR_BIT)      ; [1]
     ldi   TMP_REG, ee_status            ; [1]
     rcall eeprom_read                   ; [17+]
-    mov   STATUS_REG, BH_VALUE_REG      ; [1]
-    andi  STATUS_REG, _BV(PWR_BIT)      ; [1]
+    and   STATUS_REG, BH_VALUE_REG      ; [1]
     ; load BH from EEPROM
     ldi   TMP_REG, ee_bh_current        ; [1]
     rcall eeprom_read_unsafe            ; [15]
@@ -90,10 +90,10 @@
     rcall eeprom_read                   ; [17+]
  .if INIT_PWR_STATE == 1
     ldi   STATUS_REG, _BV(PWR_BIT)      ; [1]
-    rcall update_from_table             ; [18]
+    rcall update_from_table             ; [16]
  .else
     clr   STATUS_REG                    ; [1]
-    rcall reset_target_registers        ; [13]
+    rcall reset_target_registers        ; [10]
  .endif
 .endif
     

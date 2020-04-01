@@ -182,7 +182,7 @@ _above_1f:
     
     ; [0xEA]: CUSTOM "POWER ON" COMMAND. MAY BE USED TO CANCEL THE TIMER
     ldi   STATUS_REG, _BV(PWR_BIT)                  ; [1]
-    rcall update_from_table                         ; [16]
+    rcall update_from_table                         ; [18]
     rjmp  _nec_abort                                ; [2] -> ABORT: NON-REPEATABLE COMMAND WAS EXECUTED
 
     sbrs  STATUS_REG, PWR_BIT                       ; [2][1]

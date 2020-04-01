@@ -20,7 +20,7 @@ _main_loop:
     rjmp  pcint_event                   ; [0][2] -> NO OVERFLOW. CHECK FOR PIN CHANGE EVENT.
     
     ; TIMER IS OVERFLOWED
-    out   TIM_FLAGS_REG, TMP_REG        ; [1] clear timer flags
+    out   TIM_FLAGS_REG, TMP_REG        ; [1] clear all active timer flags
     cpi   NECCNT_REG, NECCNT_MAX        ; [1]
     adc   NECCNT_REG, ZERO_REG          ; [1] if (neccnt < max) neccnt++
     dec   PWRTMR_REG                    ; [1]
@@ -39,8 +39,8 @@ _main_loop:
 .if INIT_PWR_STATE > 1
     ; *** STORE STATUS TO EEPROM ***
     push  BH_VALUE_REG                  ; [2]
-    mov   BH_VALUE_REG, STATUS_REG      ; [1]
-    sbr   BH_VALUE_REG, ~_BV(PWR_BIT)   ; [1]
+    ldi   BH_VALUE_REG, ~_BV(PWR_BIT)   ; [1]
+    or    BH_VALUE_REG, STATUS_REG      ; [1]
     ldi   TMP_REG, ee_status            ; [1]
     rcall eeprom_write_bh               ; [20+]
     pop   BH_VALUE_REG                  ; [2]
@@ -92,9 +92,9 @@ ac_event:
     sbrs  STATUS_REG, TMR_BIT           ; [2][1]
     rjmp  ac_skip_1s                    ; [0][2] -> timer not active
     ; Timer tick
-    sbiw  TIMLO_REG, 1                  ; [1]
-    brne  ac_skip_1s                    ; [1][2]
-    andi  STATUS_REG, _BV(INV_BIT)      ; [1]
+    sbiw  TIMLO_REG, 1                  ; [2]
+    brne  ac_skip_1s                    ; [1][2] -> timer not expired
+    clr   STATUS_REG                    ; [1]
     rcall reset_target_registers        ; [10]
     
     ; **** END OF 1S BLOCK ****
